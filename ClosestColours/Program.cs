@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using SixLabors.ImageSharp;
 using System.IO;
 using System.Threading.Tasks;
+using ClosestColours.Models;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
@@ -10,6 +11,8 @@ namespace ClosestColours
 {
     internal class Program
     {
+        private static readonly Dictionary<Colour, string> _colourDictionary = new Dictionary<Colour, string>();
+
         private static async Task Main(string[] args)
         {
             if (args.Length == 0)
@@ -28,72 +31,81 @@ namespace ClosestColours
                 return;
             }
 
-            Console.WriteLine("Creating image. This may take a while...");
-
-            Dictionary<Colour, string> colourDictionary = await BuildColourDictionary();
+            await BuildColourDictionary();
 
             byte[] imageBytes = await File.ReadAllBytesAsync(path);
+
+            string[,] images;
+            int newWidth;
+            int newHeight;
             using (Image<Rgba32> image = Image.Load(imageBytes))
             {
-                int newWidth = Math.Min(250, image.Width);
+                newWidth = Math.Min(200, image.Width);
                 float multiplier = 1 - Math.Abs(newWidth - image.Width) / (float)image.Width;
-                int newHeight = (int)Math.Floor(image.Height * multiplier);
+                newHeight = (int)Math.Floor(image.Height * multiplier);
 
                 image.Mutate(img => img.Resize(newWidth, newHeight));
 
-                string[,] images = new string[newWidth, newHeight];
+                images = FindMostSuitableImages(image);
+            }
 
-                for (int x = 0; x < newWidth; x++)
-                {
-                    for (int y = 0; y < newHeight; y++)
-                    {
-                        Rgba32 pixel = image[x, y];
-                        images[x, y] = colourDictionary[GetNearestColour(ref colourDictionary, pixel.R, pixel.G, pixel.B)];
-                    }
-                }
+            Console.WriteLine("Step 3: Create output image. This may take a while.");
 
-                const int letterSize = 10;
-                int outputWidth = newWidth * letterSize;
-                int outputHeight = newHeight * letterSize;
-                using (Image<Rgba32> newImage = new Image<Rgba32>(outputWidth, outputHeight))
+            const int letterSize = 10;
+            int outputHeight = newHeight * letterSize;
+            int outputWidth = newWidth * letterSize;
+
+            Dictionary<string, byte[]> letterDictionary = new Dictionary<string, byte[]>();
+
+            using (Image<Rgba32> newImage = new Image<Rgba32>(outputWidth, outputHeight))
+            {
+                for (int x = 0; x < outputWidth; x += letterSize)
                 {
-                    for (int x = 0; x < outputWidth; x += letterSize)
+                    for (int y = 0; y < outputHeight; y += letterSize)
                     {
-                        for (int y = 0; y < outputHeight; y += letterSize)
+                        string letterPath = images[x / letterSize, y / letterSize];
+                        byte[] letterBytes;
+                        if (letterDictionary.ContainsKey(letterPath))
                         {
-                            byte[] letterImageBytes = await File.ReadAllBytesAsync(images[x / letterSize, y / letterSize]);
-                            using (Image<Rgba32> letterImage = Image.Load(letterImageBytes))
+                            letterBytes = letterDictionary[letterPath];
+                        } else
+                        {
+                            letterBytes = await File.ReadAllBytesAsync(letterPath);
+                            letterDictionary.Add(letterPath, letterBytes);
+                        }
+
+                        using (Image<Rgba32> letterImage = Image.Load(letterBytes))
+                        {
+                            letterImage.Mutate(letterImg => letterImg.Resize(letterSize, letterSize));
+                            for (int letterX = 0; letterX < letterSize; letterX++)
                             {
-                                letterImage.Mutate(letterImg => letterImg.Resize(letterSize, letterSize));
-                                for (int letterX = 0; letterX < letterSize; letterX++)
+                                for (int letterY = 0; letterY < letterSize; letterY++)
                                 {
-                                    for (int letterY = 0; letterY < letterSize; letterY++)
-                                    {
-                                        newImage[letterX + x, letterY + y] = letterImage[letterX, letterY];
-                                    }
+                                    newImage[letterX + x, letterY + y] = letterImage[letterX, letterY];
                                 }
                             }
                         }
                     }
-
-                    using (FileStream fileStream = File.Create("output.png"))
-                    {
-                        newImage.SaveAsPng(fileStream);
-                    }
                 }
 
-                Console.WriteLine("Done!");
-                Console.ReadKey();
+                using (FileStream fileStream = File.Create("output.png"))
+                {
+                    newImage.SaveAsPng(fileStream);
+                }
             }
+
+            Console.WriteLine("Step 3: Complete");
+            Console.WriteLine("Done!");
+            Console.ReadKey();
         }
 
         /// <summary>
         /// Gets the average colour for every letter, and returns a dictionary mapping every colour to it's associated image
         /// </summary>
         /// <returns>A dictionary of colours to letter image paths</returns>
-        private static async Task<Dictionary<Colour, string>> BuildColourDictionary()
+        private static async Task BuildColourDictionary()
         {
-            Dictionary<Colour, string> colourDictionary = new Dictionary<Colour, string>();
+            Console.WriteLine("Step 1: Build colour dictionary");
             foreach (string filePath in Directory.EnumerateFiles("letters", "*", SearchOption.TopDirectoryOnly))
             {
                 byte[] imageBytes = await File.ReadAllBytesAsync(filePath);
@@ -120,19 +132,43 @@ namespace ClosestColours
                     g /= total;
                     b /= total;
 
-                    colourDictionary.TryAdd(new Colour((byte)r, (byte)g, (byte)b), filePath);
+                    _colourDictionary.TryAdd(new Colour((byte)r, (byte)g, (byte)b), filePath);
                 }
             }
 
-            return colourDictionary;
+            Console.WriteLine("Step 1: Complete");
         }
 
-        private static Colour GetNearestColour(ref Dictionary<Colour, string> colourDictionary, byte r, byte g, byte b)
+        /// <summary>
+        /// Analyses the specified image and chooses the most suitable letter images for each pixel
+        /// </summary>
+        /// <param name="image">The image to analyse</param>
+        /// <returns>A 2D array of the letter image paths per pixel</returns>
+        private static string[,] FindMostSuitableImages(Image<Rgba32> image)
+        {
+            Console.WriteLine("Step 2: Find must suitable images");
+            string[,] images = new string[image.Width, image.Height];
+
+            for (int x = 0; x < image.Width; x++)
+            {
+                for (int y = 0; y < image.Height; y++)
+                {
+                    Rgba32 pixel = image[x, y];
+                    images[x, y] = _colourDictionary[GetNearestColour(pixel.R, pixel.G, pixel.B)];
+                }
+            }
+
+            Console.WriteLine("Step 2: Complete");
+
+            return images;
+        }
+
+        private static Colour GetNearestColour(byte r, byte g, byte b)
         {
             Colour nearestColour = new Colour();
             double distance = 500.0;
 
-            foreach (Colour colour in colourDictionary.Keys)
+            foreach (Colour colour in _colourDictionary.Keys)
             {
                 double red = Math.Pow(colour.R - r, 2.0f);
                 double green = Math.Pow(colour.G - g, 2.0f);
