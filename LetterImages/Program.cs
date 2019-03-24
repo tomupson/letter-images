@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using SixLabors.ImageSharp;
 using System.IO;
 using System.Threading.Tasks;
-using ClosestColours.Models;
+using LetterImages.Models;
+using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
-namespace ClosestColours
+namespace LetterImages
 {
     internal class Program
     {

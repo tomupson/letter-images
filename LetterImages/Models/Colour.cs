@@ -1,4 +1,4 @@
-﻿namespace ClosestColours.Models
+﻿namespace LetterImages.Models
 {
     public readonly struct Colour
     {
