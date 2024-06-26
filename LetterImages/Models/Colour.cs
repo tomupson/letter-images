@@ -1,16 +1,8 @@
-﻿namespace LetterImages.Models
-{
-    public readonly struct Colour
-    {
-        public byte R { get; }
-        public byte G { get; }
-        public byte B { get; }
+namespace LetterImages.Models;
 
-        public Colour(byte r, byte g, byte b)
-        {
-            R = r;
-            G = g;
-            B = b;
-        }
-    }
+public readonly struct Colour(byte r, byte g, byte b)
+{
+    public byte R { get; } = r;
+    public byte G { get; } = g;
+    public byte B { get; } = b;
 }
