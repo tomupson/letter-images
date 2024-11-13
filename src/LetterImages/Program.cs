@@ -7,7 +7,7 @@ namespace LetterImages;
 
 internal sealed class Program
 {
-    private static readonly Dictionary<Colour, string> _colourDictionary = new();
+    private static readonly Dictionary<Colour, string> colourDictionary = new();
 
     private static async Task Main(string[] args)
     {
@@ -83,8 +83,8 @@ internal sealed class Program
                 }
             }
 
-            using FileStream fileStream = File.Create("output.png");
-            newImage.SaveAsPng(fileStream);
+            await using FileStream fileStream = File.Create("output.png");
+            await newImage.SaveAsPngAsync(fileStream);
         }
 
         Console.WriteLine("Step 3: Complete");
@@ -124,7 +124,7 @@ internal sealed class Program
             g /= total;
             b /= total;
 
-            _colourDictionary.TryAdd(new Colour((byte)r, (byte)g, (byte)b), filePath);
+            colourDictionary.TryAdd(new Colour((byte)r, (byte)g, (byte)b), filePath);
         }
 
         Console.WriteLine("Step 1: Complete");
@@ -145,7 +145,7 @@ internal sealed class Program
             for (int y = 0; y < image.Height; y++)
             {
                 Rgba32 pixel = image[x, y];
-                images[x, y] = _colourDictionary[GetNearestColour(pixel.R, pixel.G, pixel.B)];
+                images[x, y] = colourDictionary[GetNearestColour(pixel.R, pixel.G, pixel.B)];
             }
         }
 
@@ -159,7 +159,7 @@ internal sealed class Program
         Colour nearestColour = new Colour();
         double distance = 500.0;
 
-        foreach (Colour colour in _colourDictionary.Keys)
+        foreach (Colour colour in colourDictionary.Keys)
         {
             double red = Math.Pow(colour.R - r, 2.0f);
             double green = Math.Pow(colour.G - g, 2.0f);
