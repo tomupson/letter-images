@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "ClosestColours": {
+      "commandName": "Project",
+      "commandLineArgs": "images/goose.jpg"
+    }
+  }
+}
