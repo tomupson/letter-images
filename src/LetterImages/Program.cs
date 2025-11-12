@@ -37,7 +37,7 @@ internal sealed class Program
         using (Image<Rgba32> image = Image.Load<Rgba32>(imageBytes))
         {
             newWidth = Math.Min(200, image.Width);
-            float multiplier = 1 - Math.Abs(newWidth - image.Width) / (float)image.Width;
+            float multiplier = 1 - (Math.Abs(newWidth - image.Width) / (float)image.Width);
             newHeight = (int)Math.Floor(image.Height * multiplier);
 
             image.Mutate(img => img.Resize(newWidth, newHeight));
